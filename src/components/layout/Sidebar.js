@@ -13,7 +13,6 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import SettingsIcon from '@mui/icons-material/Settings';
 
 const drawerWidth = 240;
 const closedDrawerWidth = 65;
@@ -27,10 +26,6 @@ const Sidebar = ({ open }) => {
     { text: 'Upload Files', icon: <UploadFileIcon />, path: '/upload' },
     { text: 'Charts', icon: <BarChartIcon />, path: '/charts' },
     { text: 'Export PDF', icon: <PictureAsPdfIcon />, path: '/export' },
-  ];
-  
-  const bottomMenuItems = [
-    { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
   ];
 
   return (
@@ -54,40 +49,6 @@ const Sidebar = ({ open }) => {
       <Box sx={{ overflow: 'auto' }}>
         <List>
           {menuItems.map((item) => (
-            <ListItem 
-              key={item.text} 
-              disablePadding 
-              sx={{ display: 'block' }}
-              selected={location.pathname === item.path}
-            >
-              <ListItemButton
-                sx={{
-                  minHeight: 48,
-                  justifyContent: open ? 'initial' : 'center',
-                  px: 2.5,
-                }}
-                onClick={() => navigate(item.path)}
-              >
-                <ListItemIcon
-                  sx={{
-                    minWidth: 0,
-                    mr: open ? 3 : 'auto',
-                    justifyContent: 'center',
-                  }}
-                >
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText 
-                  primary={item.text} 
-                  sx={{ opacity: open ? 1 : 0 }} 
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-        <Divider />
-        <List>
-          {bottomMenuItems.map((item) => (
             <ListItem 
               key={item.text} 
               disablePadding 

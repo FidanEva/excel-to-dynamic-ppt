@@ -6,44 +6,79 @@ const DataContext = createContext();
 // Custom hook to use the data context
 export const useData = () => useContext(DataContext);
 
+// Initial structure for all four datasets
+const initialExcelData = {
+  combinedSources: null,
+  officialFacebook: null,
+  officialInstagram: null,
+  keywords: null
+};
+
 const DataProvider = ({ children }) => {
   // State for excel data
-  const [excelData, setExcelData] = useState({});
+  const [excelData, setExcelData] = useState(initialExcelData);
   
-  // State for processed chart data
-  const [chartData, setChartData] = useState([]);
+  // State for report data
+  const [reportData, setReportData] = useState({
+    title: 'Data Visualization Report',
+    date: new Date().toISOString().split('T')[0],
+    charts: []
+  });
   
-  // State for tracking file uploads
+  // State for tracking uploaded file names (optional)
   const [uploadedFiles, setUploadedFiles] = useState([]);
-  
-  // Function to add new excel data
-  const addExcelData = (newData, fileName) => {
-    setExcelData(newData);
-    setUploadedFiles(prev => [...prev, fileName]);
+
+  // Function to add or update specific excel data type
+  const addExcelData = (newData, type) => {
+    if (!initialExcelData.hasOwnProperty(type)) {
+      console.warn(`Unknown excel data type: "${type}"`);
+      return;
+    }
+
+    setExcelData(prev => ({
+      ...prev,
+      [type]: newData
+    }));
+
+    if (!uploadedFiles.includes(type)) {
+      setUploadedFiles(prev => [...prev, type]);
+    }
   };
 
-  // Function to process data for charts
-  const processChartData = (processedData) => {
-    setChartData(processedData);
+  const updateReportData = (newReportData) => {
+    setReportData(prev => ({
+      ...prev,
+      ...newReportData
+    }));
   };
-  
-  // Function to clear all data
+
+  const processChartData = (charts) => {
+    setReportData(prev => ({
+      ...prev,
+      charts
+    }));
+  };
+
   const clearAllData = () => {
-    setExcelData([]);
-    setChartData([]);
+    setExcelData(initialExcelData);
+    setReportData({
+      title: 'Data Visualization Report',
+      date: new Date().toISOString().split('T')[0],
+      charts: []
+    });
     setUploadedFiles([]);
   };
-  
-  // Value object to be provided to consumers
+
   const value = {
     excelData,
-    chartData,
+    reportData,
     uploadedFiles,
     addExcelData,
+    updateReportData,
     processChartData,
     clearAllData
   };
-  
+
   return (
     <DataContext.Provider value={value}>
       {children}

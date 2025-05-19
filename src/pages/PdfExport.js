@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -36,7 +35,9 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
-
+import BarChartComponent from '../components/charts/BarChartComponent';
+import LineChartComponent from '../components/charts/LineChartComponent';
+import PieChartComponent from '../components/charts/PieChartComponent';
 // Define colors for charts
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
@@ -55,41 +56,17 @@ const ORIENTATIONS = [
 
 const PdfExport = () => {
   const navigate = useNavigate();
-  const { chartData } = useData();
+  const { reportData } = useData();
   const chartsRef = useRef(null);
   
-  // PDF export settings
-  const [pdfTitle, setPdfTitle] = useState('Data Visualization Report');
-  const [pageSize, setPageSize] = useState('a4');
-  const [orientation, setOrientation] = useState('portrait');
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState(null);
   const [exportSuccess, setExportSuccess] = useState(false);
   
-  // Get selected page size dimensions
-  const getSelectedPageSize = () => {
-    return PAGE_SIZES.find(size => size.id === pageSize);
-  };
-  
-  // Handle PDF title change
-  const handleTitleChange = (event) => {
-    setPdfTitle(event.target.value);
-  };
-  
-  // Handle page size change
-  const handlePageSizeChange = (event) => {
-    setPageSize(event.target.value);
-  };
-  
-  // Handle orientation change
-  const handleOrientationChange = (event) => {
-    setOrientation(event.target.value);
-  };
-  
   // Generate and download PDF
   const generatePDF = async () => {
-    if (chartData.length === 0) {
-      setExportError('No charts available to export. Please create charts first.');
+    if (reportData.charts.length === 0) {
+      setExportError('No charts available to export. Please add charts to your report first.');
       return;
     }
     
@@ -98,71 +75,80 @@ const PdfExport = () => {
     setExportSuccess(false);
     
     try {
-      // Get page dimensions
-      const selectedSize = getSelectedPageSize();
-      const isLandscape = orientation === 'landscape';
-      
-      // Initialize PDF with selected page size and orientation
+      // Initialize PDF in landscape mode
       const pdf = new jsPDF({
-        orientation: orientation,
+        orientation: 'landscape',
         unit: 'mm',
-        format: [
-          isLandscape ? selectedSize.height : selectedSize.width,
-          isLandscape ? selectedSize.width : selectedSize.height
-        ]
+        format: 'a4'
       });
       
-      // Add title to PDF
-      pdf.setFontSize(18);
-      pdf.text(pdfTitle, 20, 20);
+      // Add title page
+      pdf.setFontSize(24);
+      pdf.text(reportData.title || 'Data Visualization Report', 20, 40);
+      
+      pdf.setFontSize(16);
+      pdf.text(`Generated on: ${reportData.date}`, 20, 50);
+      
       pdf.setFontSize(12);
-      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 20, 30);
-      pdf.line(20, 35, pdf.internal.pageSize.getWidth() - 20, 35);
+      pdf.text(`Total Charts: ${reportData.charts.length}`, 20, 60);
       
-      // Set initial position for charts
-      let yPosition = 50;
-      
-      // For each chart in the charts container
-      if (chartsRef.current) {
-        // Get all chart elements
-        const chartElements = chartsRef.current.querySelectorAll('.chart-container');
+      // Group charts by dataset
+      const chartsByDataset = reportData.charts.reduce((acc, chart) => {
+        if (!acc[chart.datasetName]) {
+          acc[chart.datasetName] = [];
+        }
+        acc[chart.datasetName].push(chart);
+        return acc;
+      }, {});
+
+      // For each dataset
+      for (const [datasetName, charts] of Object.entries(chartsByDataset)) {
+        // Add dataset title page
+        pdf.addPage();
+        pdf.setFontSize(20);
+        pdf.text(datasetName, 20, 30);
         
-        for (let i = 0; i < chartElements.length; i++) {
-          const chart = chartElements[i];
+        // For each chart in the dataset
+        for (const chart of charts) {
+          // Add new page for each chart
+          pdf.addPage();
           
           // Create a canvas from the chart element
-          const canvas = await html2canvas(chart);
-          const imgData = canvas.toDataURL('image/png');
+          const chartElement = document.getElementById(`chart-${chart.id}`);
+          if (!chartElement) continue;
           
-          // Calculate image width and height to fit in PDF
+          // Wait for the chart to be fully rendered
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          const canvas = await html2canvas(chartElement, {
+            scale: 2, // Higher scale for better quality
+            useCORS: true,
+            logging: false,
+            allowTaint: true
+          });
+          
+          const imgData = canvas.toDataURL('image/png', 1.0);
+          
+          // Calculate image dimensions to fit on page
           const pageWidth = pdf.internal.pageSize.getWidth();
           const pageHeight = pdf.internal.pageSize.getHeight();
           
           const imgWidth = pageWidth - 40; // 20mm margin on each side
           const imgHeight = (canvas.height * imgWidth) / canvas.width;
           
-          // Check if the image will fit on the current page
-          if (yPosition + imgHeight + 30 > pageHeight) {
-            pdf.addPage();
-            yPosition = 20;
-          }
-          
           // Add chart title
-          pdf.setFontSize(14);
-          pdf.text(`${chartData[i].xAxis} vs ${chartData[i].yAxis}`, 20, yPosition);
+          pdf.setFontSize(16);
+          pdf.text(chart.title, 20, 20);
           
           // Add chart image
-          pdf.addImage(imgData, 'PNG', 20, yPosition + 10, imgWidth, imgHeight);
-          
-          // Update position for next chart
-          yPosition += imgHeight + 30;
+          pdf.addImage(imgData, 'PNG', 20, 30, imgWidth, imgHeight);
         }
-        
-        // Save PDF
-        pdf.save(`${pdfTitle.replace(/\s+/g, '_')}.pdf`);
-        
-        setExportSuccess(true);
       }
+      
+      // Save PDF
+      pdf.save(`${reportData.title.replace(/\s+/g, '_') || 'report'}.pdf`);
+      
+      setExportSuccess(true);
     } catch (error) {
       console.error('Error generating PDF:', error);
       setExportError('Failed to generate PDF. Please try again.');
@@ -171,70 +157,35 @@ const PdfExport = () => {
     }
   };
   
-  // Render a specific chart type
-  const renderChart = (chartData, index) => {
-    switch (chartData.type) {
+  // Render chart based on type
+  const renderChart = (chart) => {
+    switch (chart.type) {
       case 'bar':
         return (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData.data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="value" fill={COLORS[index % COLORS.length]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <BarChartComponent 
+            data={chart.data} 
+            xAxisKey={chart.xAxisKey} 
+            yAxisKey={chart.yAxisKey}
+            title={chart.title}
+          />
         );
       case 'line':
         return (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData.data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="value" stroke={COLORS[index % COLORS.length]} activeDot={{ r: 8 }} />
-            </LineChart>
-          </ResponsiveContainer>
+          <LineChartComponent 
+            data={chart.data} 
+            xAxisKey={chart.xAxisKey} 
+            yAxisKey={chart.yAxisKey}
+            title={chart.title}
+          />
         );
       case 'pie':
         return (
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={chartData.data}
-                cx="50%"
-                cy="50%"
-                labelLine={true}
-                label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                outerRadius={120}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {chartData.data.map((entry, i) => (
-                  <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        );
-      case 'area':
-        return (
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={chartData.data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Area type="monotone" dataKey="value" fill={COLORS[index % COLORS.length]} stroke={COLORS[index % COLORS.length]} />
-            </AreaChart>
-          </ResponsiveContainer>
+          <PieChartComponent 
+            data={chart.data} 
+            nameKey={chart.xAxisKey} 
+            valueKey={chart.yAxisKey}
+            title={chart.title}
+          />
         );
       default:
         return null;
@@ -247,16 +198,16 @@ const PdfExport = () => {
         Export to PDF
       </Typography>
       
-      {chartData.length === 0 ? (
+      {reportData.charts.length === 0 ? (
         <Alert severity="warning" sx={{ mb: 3 }}>
           <AlertTitle>No Charts Available</AlertTitle>
-          Please create charts first before exporting to PDF.
+          Please add charts to your report before exporting to PDF.
           <Box sx={{ mt: 2 }}>
             <Button 
               variant="contained" 
               onClick={() => navigate('/charts')}
             >
-              Create Charts
+              View Charts
             </Button>
           </Box>
         </Alert>
@@ -264,76 +215,32 @@ const PdfExport = () => {
         <>
           <Paper sx={{ p: 3, mb: 3 }}>
             <Typography variant="h6" gutterBottom>
-              PDF Export Settings
+              Report Preview
             </Typography>
             
-            <Grid container spacing={3}>
-              {/* PDF Title */}
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="PDF Title"
-                  value={pdfTitle}
-                  onChange={handleTitleChange}
-                  variant="outlined"
-                />
-              </Grid>
-              
-              {/* Page Size */}
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth>
-                  <InputLabel id="page-size-label">Page Size</InputLabel>
-                  <Select
-                    labelId="page-size-label"
-                    id="page-size"
-                    value={pageSize}
-                    label="Page Size"
-                    onChange={handlePageSizeChange}
-                  >
-                    {PAGE_SIZES.map(size => (
-                      <MenuItem key={size.id} value={size.id}>
-                        {size.label} ({size.width}mm x {size.height}mm)
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              
-              {/* Orientation */}
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth>
-                  <InputLabel id="orientation-label">Orientation</InputLabel>
-                  <Select
-                    labelId="orientation-label"
-                    id="orientation"
-                    value={orientation}
-                    label="Orientation"
-                    onChange={handleOrientationChange}
-                  >
-                    {ORIENTATIONS.map(option => (
-                      <MenuItem key={option.id} value={option.id}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              
-              {/* Export Button */}
-              <Grid item xs={12}>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={<PictureAsPdfIcon />}
-                  onClick={generatePDF}
-                  disabled={isExporting}
-                  fullWidth
-                  size="large"
-                >
-                  {isExporting ? 'Generating PDF...' : 'Export to PDF'}
-                </Button>
-              </Grid>
-            </Grid>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle1">
+                Title: {reportData.title || 'Untitled Report'}
+              </Typography>
+              <Typography variant="subtitle1">
+                Date: {reportData.date}
+              </Typography>
+              <Typography variant="subtitle1">
+                Total Charts: {reportData.charts.length}
+              </Typography>
+            </Box>
+            
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<PictureAsPdfIcon />}
+              onClick={generatePDF}
+              disabled={isExporting}
+              fullWidth
+              size="large"
+            >
+              {isExporting ? 'Generating PDF...' : 'Export to PDF'}
+            </Button>
             
             {/* Success Message */}
             {exportSuccess && (
@@ -357,20 +264,28 @@ const PdfExport = () => {
             </Typography>
             
             <Box ref={chartsRef}>
-              <Grid container spacing={3}>
-                {chartData.map((chart, index) => (
-                  <Grid item xs={12} md={6} key={index}>
-                    <Card className="chart-container">
-                      <CardContent>
-                        <Typography variant="subtitle1" gutterBottom>
-                          {chart.fileSource} - {chart.xAxis} vs {chart.yAxis}
-                        </Typography>
-                        {renderChart(chart, index)}
-                      </CardContent>
-                    </Card>
+              {Object.entries(reportData.charts.reduce((acc, chart) => {
+                if (!acc[chart.datasetName]) {
+                  acc[chart.datasetName] = [];
+                }
+                acc[chart.datasetName].push(chart);
+                return acc;
+              }, {})).map(([datasetName, charts]) => (
+                <Box key={datasetName} sx={{ mb: 4 }}>
+                  <Typography variant="h6" gutterBottom>
+                    {datasetName}
+                  </Typography>
+                  <Grid container spacing={3}>
+                    {charts.map((chart) => (
+                      <Grid item xs={12} key={chart.id}>
+                        <Box id={`chart-${chart.id}`}>
+                          {renderChart(chart)}
+                        </Box>
+                      </Grid>
+                    ))}
                   </Grid>
-                ))}
-              </Grid>
+                </Box>
+              ))}
             </Box>
           </Paper>
         </>

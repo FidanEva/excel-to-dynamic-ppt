@@ -6,6 +6,7 @@ import Dashboard from '../pages/Dashboard';
 import UploadFiles from '../pages/UploadFiles';
 import ChartViewer from '../pages/ChartViewer';
 import PdfExport from '../pages/PdfExport';
+import PowerPointExport from '../pages/PowerPointExport';
 // import Settings from '../pages/Settings';
 // import NotFound from '../pages/NotFound';
 
@@ -16,9 +17,11 @@ const AppRoutes = () => {
       <Route path="/upload" element={<UploadFiles />} />
       <Route path="/charts" element={<ChartViewer />} />
       <Route path="/export" element={<PdfExport />} />
+      <Route path="/export-ppt" element={<PowerPointExport />} />
       {/*<Route path="/settings" element={<Settings />} />
       <Route path="/404" element={<NotFound />} />
       <Route path="*" element={<Navigate to="/404" replace />} /> */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };

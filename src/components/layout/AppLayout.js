@@ -21,7 +21,7 @@ const AppLayout = ({ children }) => {
           flexGrow: 1,
           p: 3,
           mt: 8,
-          ml: isSidebarOpen ? { sm: 30 } : { sm: 7 },
+          ml: { sm: 7 },
           transition: theme => theme.transitions.create('margin', {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,
